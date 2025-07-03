@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>Untitled</title>
+  <link rel="stylesheet" href="./style.css">
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mood Grade</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', cursive; }
+    body {
+      background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+      color: #fff; height:100vh; display:flex; justify-content:center; align-items:center; overflow:hidden;
+    }
+    .hidden { display:none!important; }
+    .glass {
+      backdrop-filter:blur(12px);
+      background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:1rem;
+      box-shadow:0 4px 30px rgba(0,0,0,0.1);
+    }
+    /* Splash */
+    #splash {
+      position:absolute; width:100%; height:100%;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      animation:fadeOut 1s ease 2.5s forwards;
+    }
+    .logo-glow {
+      width:80px; height:80px; border-radius:50%;
+      background:radial-gradient(circle,#ffffff40,transparent 70%);
+      animation:pulse 2s infinite;
+    }
+    .app-name {
+      margin-top:1rem; font-size:2rem; font-style:italic; font-weight:bold;
+      text-shadow:0 0 8px rgba(255,255,255,0.5);
+    }
+    .shimmer-loader {
+      margin-top:1rem; width:80px; height:4px;
+      background:linear-gradient(90deg,transparent,#fff,transparent);
+      background-size:200% 100%; animation:shimmer 1.5s infinite;
+    }
+    @keyframes shimmer { from{background-position:-200% 0}to{background-position:200% 0} }
+    @keyframes pulse   {0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.1);opacity:1}}
+    @keyframes fadeOut {to{opacity:0;visibility:hidden}}
+    /* Top bar */
+    .top-bar {
+      position:absolute; top:0; width:100%; display:flex;
+      justify-content:space-between; align-items:center; padding:1rem; z-index:10;
+    }
+    .icon-btn {
+      background:none; border:none; font-size:1.5rem; cursor:pointer; color:#fff;
+    }
+    .title { font-style:italic; font-weight:bold; font-size:1.2rem; }
+    /* Editor & canvas */
+    #editor {
+      position:relative; width:calc(100vh*9/16); height:100vh; max-width:100%; max-height:100%;
+    }
+    #canvas-container {
+      width:100%; height:100%; aspect-ratio:9/16;
+      border-radius:1rem; overflow:hidden; position:relative;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #editCanvas {
+      width:100%; height:100%; object-fit:contain;
+    }
+    #beforeAfterBtn {
+      position:absolute; bottom:10px; right:10px; padding:.6rem; border-radius:50%;
+      backdrop-filter:blur(12px); background:rgba(255,255,255,0.1); border:none;
+      font-size:1.2rem; cursor:pointer; z-index:5;
+    }
+    #uploadInput {
+      position:absolute; bottom:1rem; left:50%; transform:translateX(-50%); z-index:5;
+    }
+    /* Shortcut bar */
+    .shortcut-bar {
+      position:absolute; bottom:0; width:100%; display:flex;
+      justify-content:space-around; padding:.5rem; z-index:10;
+    }
+    .shortcut-btn {
+      background:none; border:none; font-size:1rem; color:#fff; padding:.5rem; cursor:pointer;
+    }
+    /* Tool popup */
+    #tool-popup {
+      position:absolute; bottom:0; width:100%; height:33vh;
+      border-top-left-radius:1rem; border-top-right-radius:1rem;
+      display:flex; flex-direction:column; z-index:20;
+    }
+    .popup-header {
+      display:flex; justify-content:space-between; padding:.5rem;
+      border-bottom:1px solid rgba(255,255,255,0.2);
+    }
+    #popup-content {
+      flex:1; overflow-y:auto; padding:.5rem;
+    }
+    @media(max-width:600px) {
+      #editor { width:100vw; height:calc(100vw*16/9); max-height:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <div class="logo-glow"></div>
+    <h1 class="app-name">Mood Grade</h1>
+    <div class="shimmer-loader"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="top-bar glass">
+      <button id="backBtn" class="icon-btn">⟵</button>
+      <h1 class="title">Mood Grade</h1>
+      <button id="exportBtn" class="icon-btn">💾</button>
+    </div>
+
+    <div id="editor">
+      <div id="canvas-container" class="glass">
+        <canvas id="editCanvas"></canvas>
+        <button id="beforeAfterBtn" class="glass">◑</button>
+      </div>
+      <input type="file" id="uploadInput" accept="image/*"/>
+    </div>
+
+    <div class="shortcut-bar glass">
+      <button class="shortcut-btn" data-tool="filters">Filters</button>
+      <button class="shortcut-btn" data-tool="adjustments">Adjustments</button>
+      <button class="shortcut-btn" data-tool="rotate">Rotate</button>
+      <button class="shortcut-btn" data-tool="flip">Flip</button>
+    </div>
+
+    <div id="tool-popup" class="glass hidden">
+      <div class="popup-header">
+        <button id="cancelBtn" class="icon-btn">✕</button>
+        <button id="applyBtn" class="icon-btn">✔︎</button>
+      </div>
+      <div id="popup-content"></div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded",()=>{
+      const splash=document.getElementById("splash"),
+            app=document.getElementById("app"),
+            canvas=document.getElementById("editCanvas"),
+            ctx=canvas.getContext("2d"),
+            upload=document.getElementById("uploadInput"),
+            beforeAfter=document.getElementById("beforeAfterBtn"),
+            backBtn=document.getElementById("backBtn"),
+            exportBtn=document.getElementById("exportBtn"),
+            shortcuts=document.querySelectorAll(".shortcut-btn"),
+            popup=document.getElementById("tool-popup"),
+            popContent=document.getElementById("popup-content"),
+            cancelBtn=document.getElementById("cancelBtn"),
+            applyBtn=document.getElementById("applyBtn");
+
+      let img=new Image(), originalData=null, viewingOriginal=false,
+          currentFilter="", rotation=0, flipH=false,
+          historyStack=[], redoStack=[];
+
+      setTimeout(()=>{
+        splash.style.display="none"; app.classList.remove("hidden");
+        resizeCanvas();
+      },2500);
+
+      function resizeCanvas(){
+        const ctn=document.getElementById("canvas-container");
+        canvas.width=ctn.clientWidth; canvas.height=ctn.clientHeight;
+        drawImage();
+      }
+      window.addEventListener("resize",resizeCanvas);
+
+      function drawImage(){
+        if(!img.src)return;
+        ctx.resetTransform();
+        // apply flip & rotation
+        ctx.translate(canvas.width/2,canvas.height/2);
+        ctx.rotate(rotation*Math.PI/180);
+        ctx.scale(flipH?-1:1,1);
+        ctx.translate(-canvas.width/2,-canvas.height/2);
+        ctx.filter=currentFilter;
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        const scale=Math.min(canvas.width/img.width,canvas.height/img.height),
+              w=img.width*scale, h=img.height*scale;
+        ctx.drawImage(img,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+        if(!originalData) originalData=ctx.getImageData(0,0,canvas.width,canvas.height);
+        ctx.filter="none"; viewingOriginal=false;
+      }
+
+      upload.addEventListener("change",e=>{
+        const f=e.target.files[0]; if(!f)return;
+        img.src=URL.createObjectURL(f);
+        img.onload=()=>{
+          originalData=null; historyStack=[]; redoStack=[];
+          currentFilter=""; rotation=0; flipH=false;
+          resizeCanvas();
+        };
+      });
+
+      beforeAfter.addEventListener("click",()=>{
+        if(!originalData)return;
+        if(viewingOriginal) drawImage();
+        else ctx.putImageData(originalData,0,0);
+        viewingOriginal=!viewingOriginal;
+      });
+
+      backBtn.onclick=()=>location.reload();
+      exportBtn.onclick=()=>{
+        const a=document.createElement("a");
+        a.download="moodgrade_edit.png";
+        a.href=canvas.toDataURL("image/png");
+        a.click();
+      };
+
+      document.addEventListener("keydown",e=>{
+        if(e.ctrlKey&&e.key==="z"&&historyStack.length){
+          redoStack.push(historyStack.pop());
+          currentFilter=historyStack[historyStack.length-1]||"";
+          drawImage();
+        }
+        if(e.ctrlKey&&e.key==="y"&&redoStack.length){
+          const redo=redoStack.pop();
+          historyStack.push(redo);
+          currentFilter=redo; drawImage();
+        }
+      });
+
+      const filterDefs={
+        "Blade Runner 2049":"contrast(1.3) saturate(1.4) hue-rotate(-10deg)",
+        "Oppenheimer":"contrast(1.5) saturate(0.6)",
+        "Dune":"brightness(1.1) contrast(1.2) saturate(0.8)",
+        "The Batman":"contrast(1.8) brightness(0.9)",
+        "La La Land":"hue-rotate(270deg) saturate(1.5)",
+        "Joker":"contrast(1.2) sepia(0.2) hue-rotate(80deg)",
+        "Mad Max: Fury Road":"sepia(0.3) brightness(1.2) contrast(1.4)",
+        "Inception":"contrast(1.3) brightness(0.95) hue-rotate(180deg)",
+        "Tenet":"contrast(1.4) brightness(1.05)",
+        "Her":"sepia(0.2) brightness(1.1) saturate(1.2)",
+        "Moonlight":"hue-rotate(240deg) contrast(1.3)",
+        "Parasite":"hue-rotate(100deg) brightness(0.95)",
+        "The Grand Budapest Hotel":"hue-rotate(-20deg) saturate(1.4)",
+        "Everything Everywhere All at Once":"saturate(1.7) brightness(1.1)",
+        "The Revenant":"hue-rotate(10deg) contrast(0.9)",
+        "Drive":"hue-rotate(300deg) saturate(1.4)",
+        "Interstellar":"brightness(1.1) contrast(0.95)",
+        "The Matrix":"hue-rotate(90deg) contrast(1.2)",
+        "Nope":"contrast(1.5) saturate(0.7)",
+        "Whiplash":"sepia(0.1) contrast(1.3)"
+      };
+
+      function openTool(tool){
+        popContent.innerHTML="";
+        if(tool==="filters"){
+          for(let name in filterDefs){
+            const btn=document.createElement("button");
+            btn.textContent=name;
+            btn.onclick=()=>{
+              currentFilter=filterDefs[name];
+              drawImage();
+            };
+            popContent.appendChild(btn);
+          }
+        } else if(tool==="adjustments"){
+          ["brightness","contrast","saturate","hue-rotate"].forEach(fn=>{
+            const label=document.createElement("label");
+            label.textContent=fn;
+            const inp=document.createElement("input");
+            inp.type="range"; inp.min=0; inp.max=fn==="hue-rotate"?360:2;
+            inp.step=fn==="hue-rotate"?1:0.01; inp.value=fn==="hue-rotate"?0:1;
+            inp.oninput=()=>{
+              currentFilter=`${fn}(${inp.value}${fn==="hue-rotate"?"deg":""})`;
+              drawImage();
+            };
+            label.appendChild(inp);
+            popContent.appendChild(label);
+          });
+        } else if(tool==="rotate"){
+          const btn90=document.createElement("button");
+          btn90.textContent="Rotate 90°";
+          btn90.onclick=()=>{
+            rotation=(rotation+90)%360; drawImage();
+          };
+          popContent.appendChild(btn90);
+        } else if(tool==="flip"){
+          const btnF=document.createElement("button");
+          btnF.textContent="Flip Horizontal";
+          btnF.onclick=()=>{
+            flipH=!flipH; drawImage();
+          };
+          popContent.appendChild(btnF);
+        }
+        popup.classList.remove("hidden");
+      }
+
+      shortcuts.forEach(btn=>
+        btn.addEventListener("click",()=>openTool(btn.dataset.tool))
+      );
+      cancelBtn.onclick=()=>popup.classList.add("hidden");
+      applyBtn.onclick=()=>{
+        historyStack.push(currentFilter);
+        redoStack=[];
+        popup.classList.add("hidden");
+      };
+    });
+  </script>
+</body>
+</html>
+<!-- partial -->
+  <script  src="./script.js"></script>
+
+</body>
+</html>
